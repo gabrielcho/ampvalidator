@@ -1,5 +1,33 @@
 AWSTemplateFormatVersion: 2010-09-09
 
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: "GitHub Configuration"
+        Parameters:
+          - GitHubOAuthToken
+          - RepoOwner
+          - GitHubRepo
+          - GitHubBranch
+      -
+        Label:
+          default: "Lambda Configuration"
+        Parameters:
+          - AppName
+    ParameterLabels:
+      GitHubOAuthToken:
+        default: "GitHubOAuthToken"
+      RepoOwner:
+        default: "RepoOwner"
+      GitHubRepo:
+        default: "GitHubRepo"
+      GitHubBranch:
+        default: "GitHubBranch"
+      AppName:
+        default: "AppName"
+
 Parameters:
   AppName:
     Type: String
