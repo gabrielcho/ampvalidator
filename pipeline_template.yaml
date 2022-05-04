@@ -1,0 +1,221 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  AppName:
+    Type: String
+    Default: cf-deploy
+    Description: Name of the Lambda Function
+
+  GitHubOAuthToken:
+    Type: String
+    NoEcho: true
+    MinLength: 40
+    MaxLength: 40
+    Description: With this Token a Webhook will be created for the repo
+
+  RepoOwner:
+    Type: String
+    AllowedPattern: "[A-Za-z0-9-]+"
+    Description: The Owner of the GitHub Repo
+
+  GitHubRepo:
+    Type: String
+    Description: The name of the GitHub Repo
+
+  GitHubBranch:
+    Type: String
+    Default: main
+    AllowedPattern: "[A-Za-z0-9-]+"
+    Description: The name of the GitHub Repo Branch which should be used
+
+Resources:
+
+  #
+  # Roles used to give permissions to the services that are going to interact with other services
+  #
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - cloudformation:*
+                  - iam:*
+                  - lambda:*
+                  - ssm:*
+                  - apigateway:*
+                  - codepipeline:*
+                  - codebuild:*
+              - Resource: !Sub arn:aws:s3:::${ArtifactBucket}/*
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetObjectVersion
+
+
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+                - cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Resource:
+                  - !Sub arn:aws:s3:::${ArtifactBucket}/*
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                  - cloudformation:*
+                  - iam:*
+                  - lambda:*
+                  - ssm:*
+                  - apigateway:*
+                  - codepipeline:*
+                  - codebuild:*
+                  - sts:AssumeRole
+                  - codecommit:*
+
+  #Bucket used for storing the artifacts
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+
+  # Code Build Project used to package the lambda function and make the AWS SAM Template ready to be processed by CloudFormation
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Source:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+        Type: LINUX_CONTAINER
+        # This variables will be used by buildspec.yaml file
+        EnvironmentVariables:
+          - Name: S3Bucket
+            Value: !Ref ArtifactBucket
+          - Name: APP_NAME
+            Value: !Ref AppName
+      Name: !Ref AWS::StackName
+      ServiceRole: !Ref CodeBuildServiceRole
+
+  
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactBucket
+      Stages:
+        - Name: Source
+          Actions:
+            # Source stage: Gets all the code from the previously specified GitHub repository 
+            # and zips all the files as one Output Artifact to use it as an input artifact on the next step.
+            - Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: "1"
+                Provider: GitHub
+              Configuration:
+                Owner: !Ref RepoOwner
+                Repo: !Ref GitHubRepo
+                Branch: !Ref GitHubBranch
+                PollForSourceChanges: true
+                OAuthToken: !Ref GitHubOAuthToken
+              OutputArtifacts:
+                - Name: SourceCode
+              RunOrder: 1
+        
+        #Build stage: Packages the SAM template named template.yaml to transform it into a processable CloudFormation template (package.yaml)
+        - Name: Build
+          Actions:
+            - Name: Build
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref CodeBuildProject
+              InputArtifacts:
+                - Name: SourceCode
+              OutputArtifacts:
+                - Name: BuildOutput
+              RunOrder: 1
+
+        #Deploy Stage: Uses the CloudFormation ChangeSet action to update the CloudFormation stack and deploy it, it creates a new version of the lambda function
+        - Name: Deploy
+          Actions:
+            - Name: CreateChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: "1"
+                Provider: CloudFormation
+              Configuration:
+                ChangeSetName: update
+                ActionMode: CHANGE_SET_REPLACE
+                StackName: !Ref AppName
+                RoleArn: !GetAtt CodePipelineServiceRole.Arn
+                Capabilities: CAPABILITY_NAMED_IAM
+                TemplatePath: BuildOutput::package.yaml
+              InputArtifacts:
+                - Name: BuildOutput
+              RunOrder: 1
+            - Name: DeployChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: "1"
+                Provider: CloudFormation
+              Configuration:
+                ChangeSetName: update
+                ActionMode: CHANGE_SET_EXECUTE
+                StackName: !Ref AppName
+                RoleArn: !GetAtt CodePipelineServiceRole.Arn
+              InputArtifacts:
+                - Name: BuildOutput
+              RunOrder: 2
+
+Outputs:
+  PipelineUrl:
+    Value: !Sub https://console.aws.amazon.com/codepipeline/home?region=${AWS::Region}#/view/${Pipeline}
