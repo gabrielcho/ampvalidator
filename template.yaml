@@ -22,15 +22,6 @@ Resources:
             Path: /test
             Method: get
 
-#  DependenciesLayers:
-#    Type: AWS::Serverless::LayerVersion
-#    Properties:
-#      LayerName: Dependencies-layer
-#      Description: Python dependencies needed to run the lambda function code
-#      ContentUri: package/
-#      CompatibleRuntimes:
-#        - python3.8
-
   DependenciesLayers:
     Type: AWS::Serverless::LayerVersion
     Properties:
