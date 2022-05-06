@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "amphtml-validator": "1.0.35",
+    "got": "11.8.3",
+    "valid-url": "^1.0.9"
+  }
+}
