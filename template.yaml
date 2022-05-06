@@ -3,7 +3,7 @@ Transform: AWS::Serverless-2016-10-31
 Description: SAM Template used for building the infrastructure to implement a lambda function AMP Website  Validator.
 
 Resources:
-  HTMLValidatorFunction:
+  AMPValidatorFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: lambda/
@@ -65,5 +65,5 @@ Outputs:
     Value:
       Ref: HttpValidatorApi
   LambdaFunction:
-    Description: "HTML Validator Lambda Function"
-    Value: !GetAtt HTMLValidatorFunction.Arn
+    Description: "AMP Validator Lambda Function"
+    Value: !GetAtt AMPValidatorFunction.Arn
