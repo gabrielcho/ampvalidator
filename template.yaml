@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: SAM Template for building the infrastructure to implement a lambda function HTML Validator.
+Description: SAM Template used for building the infrastructure to implement a lambda function AMP Website  Validator.
 
 Resources:
   HTMLValidatorFunction:

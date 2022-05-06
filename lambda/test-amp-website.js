@@ -1,6 +1,5 @@
 const amphtmlValidator = require('amphtml-validator');
 const got = require('got');
-const URL = require('url').URL;
 const validUrl = require('valid-url');
 
 
@@ -16,7 +15,8 @@ async function validateAMPWebsite(url){
         res = await got(url, {
         timeout: {
             request: 11000
-        }});
+        },
+        retry:0});
         source = res.body;
     } catch (err) {
         let response = {
@@ -25,12 +25,12 @@ async function validateAMPWebsite(url){
         }
         switch (err.code) { 
             case "ENOTFOUND":
-                response.statusCode = 400;
-                response.body = JSON.stringify({testResult: "Could not reach targeturl"});
+                response.statusCode = 410;
+                response.body = JSON.stringify({url:url, testResult: "Could not reach targeturl"});
                 return response;
             case "ETIMEDOUT":
                 response.statusCode = 504;
-                response.body = JSON.stringify({testResult: "Website timed out"})
+                response.body = JSON.stringify({url:url, testResult: "Website timed out"})
                 return response 
         }
                 
@@ -43,13 +43,13 @@ async function validateAMPWebsite(url){
 
         let response = {
             statusCode: 200,
-            body: JSON.stringify({testResult: {status: result.status, errors:result.errors}})
+            body: JSON.stringify({url:url, testResult: {status: result.status, errors:result.errors}})
         };
         return response;
     } catch (err) {
         let response = {
             statusCode: 400,
-            body: JSON.stringify({source: source,  testResult: "Something happened with the validator"})
+            body: JSON.stringify({url:url, testResult: "Something happened with the validator"})
         };
         return response;
     }
@@ -71,18 +71,18 @@ exports.testAMPWebsite = async (event) => {
 
     if(targeturl){
         if(validUrl.isWebUri(targeturl)){
-            response = validateAMPWebsite(targeturl);
+            response =  validateAMPWebsite(targeturl);
             return  response
         }
         else {
             response.statusCode = 400;
-            response.body = JSON.stringify({testResult: "Parameter targeturl is not a valid URL"});
+            response.body = JSON.stringify({url:targeturl, testResult: "Parameter targeturl is not a valid URL"});
             return response
         }
 
     } else {
         response.statusCode = 400;
-        response.body = JSON.stringify({testResult: "No targeturl parameter was found"});
+        response.body = JSON.stringify({url:"", testResult: "No targeturl parameter was found"});
         return response;
     }
 }

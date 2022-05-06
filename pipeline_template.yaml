@@ -1,4 +1,7 @@
 AWSTemplateFormatVersion: 2010-09-09
+Description: Creates a CodePipeline that automatically spins up and updates a Lambda function hosted on GitHub
+
+
 
 Metadata:
   AWS::CloudFormation::Interface:
