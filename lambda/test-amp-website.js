@@ -58,31 +58,41 @@ async function validateAMPWebsite(url){
   }
 
 exports.testAMPWebsite = async (event) => {
-    let targeturl = event.queryStringParameters.targeturl;
-
     let response = {
         statusCode: null,
         body: null
     };
+    
+    try {
+        let targeturl = event.queryStringParameters.targeturl;
+        if (event.requestContext.http.method !== 'GET') {
+            throw new Error(`This function only accepts GET method, you tried: ${event.requestContext.http.method}`);
+        }
 
-    if (event.requestContext.http.method !== 'GET') {
-        throw new Error(`This function only accepts GET method, you tried: ${event.requestContext.http.method}`);
+        if(targeturl){
+            if(validUrl.isWebUri(targeturl)){
+                response =  validateAMPWebsite(targeturl);
+                return  response
+            }
+            else {
+                response.statusCode = 400;
+                response.body = JSON.stringify({url:targeturl, testResult: "Parameter targeturl is not a valid URL"});
+                return response
+            }
+
+        } else {
+            response.statusCode = 400;
+            response.body = JSON.stringify({url:"", testResult: "No targeturl parameter was found"});
+            return response;
+        }
     }
 
-    if(targeturl){
-        if(validUrl.isWebUri(targeturl)){
-            response =  validateAMPWebsite(targeturl);
-            return  response
-        }
-        else {
-            response.statusCode = 400;
-            response.body = JSON.stringify({url:targeturl, testResult: "Parameter targeturl is not a valid URL"});
-            return response
-        }
-
-    } else {
+    catch (err) {
         response.statusCode = 400;
         response.body = JSON.stringify({url:"", testResult: "No targeturl parameter was found"});
         return response;
     }
+
+
+
 }
